@@ -1,0 +1,78 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "survivorship-bias-free-data"
+version = "0.1.0"
+description = "Scraper de données boursières sans biais de survie pour backtesting"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+authors = [
+    {name = "DevJam Trading Robot", email = "contact@example.com"}
+]
+keywords = ["finance", "trading", "backtesting", "sp500", "nasdaq", "survivorship-bias"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Topic :: Scientific/Engineering",
+]
+
+dependencies = [
+    "yfinance>=0.2.36",
+    "pandas>=2.1.0",
+    "numpy>=1.24.0",
+    "pyarrow>=14.0.0",
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=4.9.0",
+    "tqdm>=4.65.0",
+    "fastparquet>=2023.10.0",
+    "orjson>=3.9.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "flake8>=6.0",
+    "mypy>=1.0",
+]
+notebook = [
+    "jupyter>=1.0",
+    "matplotlib>=3.7",
+    "seaborn>=0.12",
+]
+
+[project.scripts]
+download-all = "scripts.download_all:main"
+validate-data = "scripts.validate_data:main"
+
+[tool.setuptools]
+include-package-data = true
+packages = ["survivorship_bias_free_data"]
+
+[tool.setuptools.package-data]
+survivorship_bias_free_data = ["py.typed"]
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
+pythonpath = ["."]
+
+[tool.coverage.run]
+source = ["survivorship_bias_free_data"]
+omit = ["tests/*", "scripts/*"]

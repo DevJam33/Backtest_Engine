@@ -51,12 +51,18 @@ class MomentumDCAStrategy(Strategy):
 
         self._last_rebalance_month = None
         self._price_history_extended: Dict[str, List[Tuple[datetime, float]]] = {}
-        self._dca_deposit_count = 0  # Compte le nombre de dépôts DCA effectués
+        self._dca_deposit_count = 0
+
+        # Pour la gestion des données manquantes
+        self._last_known_prices: Dict[str, Dict] = {}  # {ticker: {'date': datetime, 'close': float, ...}}
+        self._missing_data_log: List[Dict] = []  # Événements de données manquantes
 
     def init(self):
         """Initialise la stratégie."""
         self._last_rebalance_month = None
         self._price_history_extended.clear()
+        self._last_known_prices.clear()
+        self._missing_data_log.clear()
 
     def on_bar(self, date: datetime, data: Dict[str, 'BarData']):
         """
@@ -78,6 +84,17 @@ class MomentumDCAStrategy(Strategy):
             # Limiter la taille (~10 ans)
             if len(self._price_history_extended[ticker]) > 3000:
                 self._price_history_extended[ticker].pop(0)
+
+        # Mettre à jour les derniers prix connus pour tous les tickers présents dans data
+        for ticker, bar in data.items():
+            self._last_known_prices[ticker] = {
+                'date': date,
+                'close': bar.close,
+                'open': bar.open,
+                'high': bar.high,
+                'low': bar.low,
+                'volume': bar.volume
+            }
 
         # Premier appel: initialiser le mois
         if self._last_rebalance_month is None:
@@ -176,6 +193,7 @@ class MomentumDCAStrategy(Strategy):
         Investit le cash disponible de manière égale dans chaque ticker du top N.
         Utilise TOUT le cash disponible (accumulé des DCA précédents + nouveau DCA).
         Permet les achats fractionnés (quantités en float).
+        Gère les données manquantes en utilisant le dernier prix connu.
         """
         if len(top_tickers) == 0:
             return
@@ -186,18 +204,44 @@ class MomentumDCAStrategy(Strategy):
             print(f"[{date.date()}] ⚠️  Pas de cash disponible pour investir")
             return
 
+        # 🔄 OPTION C: Répartir sur TOUS les tickers du top 5 (pas seulement nouveaux)
+        # Chaque ticker reçoit le même budget, qu'il soit déjà en portefeuille ou non
         per_ticker_budget = available_cash / len(top_tickers)
-        print(f"[{date.date()}] Investissement:Cash=${available_cash:.2f} → ${per_ticker_budget:.2f}/ticker")
+        print(f"[{date.date()}] Investissement: Cash=${available_cash:.2f} → ${per_ticker_budget:.2f}/ticker ({len(top_tickers)} tickers)")
 
         for ticker in top_tickers:
-            if ticker not in data:
-                continue
-            price = data[ticker].close
-            if price <= 0:
+            price = None
+            source = 'data'
+
+            # 1. Essayer d'obtenir le prix depuis data (données du jour)
+            if ticker in data:
+                price = data[ticker].close
+            # 2. Si absent, utiliser le dernier prix connu
+            elif ticker in self._last_known_prices:
+                last_known = self._last_known_prices[ticker]
+                price = last_known['close']
+                source = 'last_known'
+                # Calculer la durée d'absence (jours depuis dernière mise à jour)
+                days_missing = (date - last_known['date']).days
+                # Logger l'événement
+                self._missing_data_log.append({
+                    'date': date.isoformat(),
+                    'ticker': ticker,
+                    'days_missing': days_missing,
+                    'price_used': price
+                })
+                print(f"[{date.date()}] ⚠️  {ticker}: données manquantes, utilisation dernier prix (${price:.2f}, absent depuis {days_missing}j)")
+            # 3. Pas de données du tout
+            else:
+                print(f"[{date.date()}] ❌ {ticker}: pas de données disponibles (ni courantes ni historiques). SKIP")
                 continue
 
-            # ✅ Permettre les achats fractionnés - utiliser round() pour éviter les erreurs d'arrondi
-            # On veut utiliser le budget le plus précisément possible
+            # Vérifications
+            if price is None or price <= 0:
+                print(f"[{date.date()}] ⚠️  {ticker}: prix invalide ({price}). SKIP")
+                continue
+
+            # Calculer la quantité
             qty = per_ticker_budget / price
 
             if qty <= 0:
@@ -205,7 +249,7 @@ class MomentumDCAStrategy(Strategy):
                 print(f"[{date.date()}] ⚠️  {ticker}: budget insuffisant (prix=${price:.2f}, qty={qty:.6f})")
                 continue
 
-            print(f"[{date.date()}] DCA Achat: {ticker} qty={qty:.6f} à ~${price:.2f} (valeur=${qty*price:.2f})")
+            print(f"[{date.date()}] DCA Achat: {ticker} qty={qty:.6f} à ~${price:.2f} (source={source}, valeur=${qty*price:.2f})")
             self.buy(ticker, qty)
 
     def __repr__(self):

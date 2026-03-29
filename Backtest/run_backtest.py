@@ -266,6 +266,9 @@ def run_backtest(loader, strategy_class, params: dict, default_params: dict) -> 
     # Combiner toutes les métriques
     all_metrics = {**basic_metrics, **metrics}
 
+    # Récupérer les logs de données manquantes (MomentumDCAStrategy)
+    missing_data_log = getattr(strategy, '_missing_data_log', [])
+
     # Afficher le résumé
     print("\n" + "=" * 80)
     print(" RÉSUMÉ DES RÉSULTATS")
@@ -303,7 +306,8 @@ def run_backtest(loader, strategy_class, params: dict, default_params: dict) -> 
         'advanced_metrics': metrics,
         'equity_curve': equity_curve,
         'trades': trades,
-        'portfolio': portfolio
+        'portfolio': portfolio,
+        'missing_data_log': missing_data_log
     }
 
 def save_results(results: Dict, params: dict):
@@ -396,6 +400,18 @@ def save_results(results: Dict, params: dict):
             })
         pd.DataFrame(trades_data).to_csv(trades_file, index=False)
         print(f"📄 Trades sauvegardés: {trades_file}")
+
+    # 5. Missing data log si des événements de données manquantes
+    if results.get('missing_data_log'):
+        missing_file = backtest_dir / "missing_data_log.csv"
+        missing_df = pd.DataFrame(results['missing_data_log'])
+        missing_df.to_csv(missing_file, index=False)
+        print(f"📋 Log des données manquantes: {missing_file}")
+        # Afficher un résumé
+        total_events = len(missing_df)
+        avg_days = missing_df['days_missing'].mean()
+        tickers_affected = missing_df['ticker'].nunique()
+        print(f"   Résumé: {total_events} événements, {tickers_affected} tickers affectés, durée moyenne: {avg_days:.1f} jours")
 
     # Afficher le chemin du dossier
     print(f"\n📁 Dossier du backtest: {backtest_dir}")

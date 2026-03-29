@@ -74,12 +74,23 @@ class Portfolio:
         if position.opened_at is None and old_quantity == 0:
             position.opened_at = date
 
-        # Déduire la commission du cash
-        self.cash -= commission
-
         if side == 'BUY':
-            # Coût total de l'achat
             cost = quantity * fill_price
+            total_cost = cost + commission
+
+            # 🔒 VÉRIFICATION CRITIQUE: Empêcher le découvert
+            if total_cost > self.cash:
+                # Ajuster la quantité pour respecter le cash disponible (inclure commission)
+                if fill_price <= 0:
+                    return position  # Prix invalide, annuler
+                max_quantity = (self.cash - commission) / fill_price
+                if max_quantity <= 0:
+                    return position  # Pas assez de cash même pour une fraction
+                quantity = max_quantity
+                cost = quantity * fill_price
+
+            # Exécuter l'achat
+            self.cash -= commission
             self.cash -= cost
 
             # Sauvegarder l'état avant mise à jour
@@ -117,6 +128,7 @@ class Portfolio:
             # Pour une vente, on reçoit du cash
             proceeds = quantity * fill_price
             self.cash += proceeds
+            self.cash -= commission
 
             # Sauvegarder l'état avant mise à jour
             old_quantity = position.quantity

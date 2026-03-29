@@ -194,3 +194,38 @@ class TestPortfolio:
         assert len(self.portfolio.positions) == 0
         assert len(self.portfolio.trades) == 0
         assert len(self.portfolio._equity_history) == 0
+
+    def test_execute_order_buy_insufficient_cash(self):
+        """Test achat avec cash insuffisant: quantité ajustée automatiquement."""
+        self.portfolio.cash = 1000.0
+        # Essayer d'acheter 10 parts à 150$ = 1500$ (trop cher)
+        pos = self.portfolio.execute_order(
+            ticker="AAPL",
+            quantity=10,
+            side="BUY",
+            fill_price=150.0,
+            commission=0.0,
+            date=datetime(2020, 1, 1)
+        )
+        # Quantité attendue = cash / price = 1000/150 = 6.666...
+        expected_qty = 1000.0 / 150.0
+        assert abs(pos.quantity - expected_qty) < 1e-6
+        assert abs(self.portfolio.cash) < 0.01  # cash nearly 0
+
+    def test_execute_order_buy_insufficient_cash_with_commission(self):
+        """Test achat avec cash insuffisant et commission."""
+        self.portfolio.cash = 1000.0
+        # Commission de 10$ sera déduite d'abord, donc cash pour achat = 990
+        pos = self.portfolio.execute_order(
+            ticker="AAPL",
+            quantity=10,
+            side="BUY",
+            fill_price=150.0,
+            commission=10.0,
+            date=datetime(2020, 1, 1)
+        )
+        # Après commission, cash = 1000 - 10 = 990. Quantité max = 990/150 = 6.6
+        expected_qty = (1000.0 - 10.0) / 150.0
+        assert abs(pos.quantity - expected_qty) < 1e-6
+        # Cash restant: commission (10) + coût ajusté (~990) = 1000
+        assert abs(self.portfolio.cash) < 0.01

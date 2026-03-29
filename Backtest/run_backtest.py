@@ -33,15 +33,15 @@ from backtest_engine.strategies import (
 
 STRATEGIES = {
     1: {
-        'name': 'Momentum DCA (Top 5, 6M)',
+        'name': 'Momentum DCA (Top 3, 3M) ⭐ OPTIMAL',
         'class': MomentumDCAStrategy,
         'tickers': None,  # Tous les tickers SP500 (détection dynamique)
-        'description': 'DCA mensuel dans les 5 actions avec meilleur momentum 6M',
+        'description': '⭐ CONFIG OPTIMALE: Top 3 avec momentum 3 mois, vente des sortants. Performance: 5,390x (2000-2026)',
         'needs_dca': True,
         'needs_tickers': False,
         'default_params': {
-            'top_n': 5,
-            'momentum_period_months': 6,
+            'top_n': 3,
+            'momentum_period_months': 3,
             'use_adj_close': True,
             'sell_when_out': True
         }

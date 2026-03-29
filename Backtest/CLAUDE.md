@@ -14,12 +14,14 @@ A modular backtesting engine for trading strategies with DCA (Dollar-Cost Averag
 - Performance metrics: Sharpe, Sortino, Max Drawdown, Profit Factor, Win Rate
 - Visualization: equity curves, drawdown charts, monthly heatmaps
 
-**Current Status (2026-03-28):**
+**Current Status (2026-03-29):**
 - ✅ All 119 tests passing
 - ✅ Auto-liquidation des positions en fin de backtest
 - ✅ Disponible: MomentumDCAStrategy et SP500_DCA_SMA_Filter
 - ✅ Fractional shares support (quantités float autorisées)
 - ✅ Momentum DCA bug fix: now uses full available cash instead of monthly deposit only
+- ✅ **Paramètres optimaux déterminés** (50 combinaisons testées)
+- ✅ **Configuration optimale adoptée par défaut** (Top 3, 3 mois)
 
 ---
 
@@ -172,14 +174,16 @@ order.py - Order classes
 
 Currently available strategies:
 
-1. **MomentumDCAStrategy** (`momentum_dca.py`): Monthly momentum-based DCA ⭐ **Top performer**
-   - Each month: select top N tickers by momentum over N months (6-month momentum)
+1. **MomentumDCAStrategy** (`momentum_dca.py`): Monthly momentum-based portfolio rotation ⭐ **Optimized**
+   - Each month: select top N tickers by momentum over N months
    - Invests **ALL available cash** equally in top N (not just monthly deposit)
    - Supports fractional shares for precise allocation
-   - Sells positions that fall out of top N (configurable)
-   - Parameters: `top_n` (5), `momentum_period_months` (6), `monthly_deposit` (500), `sell_when_out` (True)
-   - Returns: **19,836%** (199x multiple) over 2000-2026 with $157k deposits → $31.3M
-   - Max Drawdown: -75.7%, Win Rate: 59.5%, Profit Factor: 4.55
+   - Sells positions that fall out of top N (configurable via `sell_when_out`)
+   - **Optimal parameters** (from 50-combination grid search):
+     - `top_n = 3`, `momentum_period_months = 3`, `sell_when_out = True`
+     - Performance: **538,879%** (5,390x multiple) over 2000-2026
+   - Previous defaults: `top_n = 5`, `momentum_period_months = 6` → 199x (19,836%)
+   - Max Drawdown (optimal): -59.5%, Win Rate: 58.5%, Profit Factor: 5.70, Trades: 612
 
 2. **SP500_DCA_SMA_Filter** (`sp500_dca_sma_filter.py`): DCA with SMA200 filter
    - Monthly DCA only executes when SP500 > SMA200
@@ -206,6 +210,48 @@ class MyStrategy(Strategy):
 ```
 
 **Indicator Tracking:** The Strategy base class automatically maintains price history for each ticker. Use `self.calculate_sma(ticker, period)` or other indicator methods.
+
+### Parameter Optimization
+
+An optimization framework is available to tune strategy parameters:
+
+**Script:** `optimize_momentum_dca.py`
+- Grid search over parameter space
+- Tests all combinations automatically
+- Saves individual results per combination
+- Generates comparison CSV and HTML reports
+- Example: 50 combinations took ~45 minutes
+
+**Usage:**
+```bash
+# Edit PARAM_GRID in optimize_momentum_dca.py
+python optimize_momentum_dca.py --no-confirm
+```
+
+**Output:**
+```
+results/optimization/
+├── comparison_all_combinations.csv  (all metrics)
+├── ranking_by_multiple_*.csv
+├── ranking_by_sharpe.csv
+├── ranking_by_calmar_*.csv
+├── optimization_summary.txt
+├── optimization_plots.png
+└── {combo_index}_{params}_{timestamp}/  (individual results)
+```
+
+**Key Findings (2026-03-29 optimization, 50 combos, 2000-2026):**
+- **Best config:** `top_n=3`, `momentum_period_months=3`, `sell_when_out=True` → **5,390x**
+- `sell_when_out=True` is **critical**: configurations without selling max out at ~30x (100x worse)
+- Smaller `top_n` (3-5) outperforms larger universes (10-20)
+- 3-month momentum period is optimal (beats 4, 6, 9, 12 months)
+- See `OPTIMIZATION_RESULTS.md` for complete analysis
+
+**Helper scripts:**
+- `generate_optimization_report.py` - Regenerate reports from existing results
+- `quick_view_optimization.py` - Quick visual analysis
+- `monitor_optimization.py` - Real-time progress monitoring
+- `run_optimal_backtest.py` - Backtest with optimal parameters
 
 ### Metrics (`backtest_engine/metrics/`)
 
@@ -413,9 +459,15 @@ This keeps each backtest's outputs organized and self-contained.
 
 **Test suite status:** ✅ 119/119 tests passing (2026-03-28)
 
-**Recent changes (2026-03-28):**
+**Recent changes (2026-03-29):**
 - ✅ Fractional shares support (Position.quantity now float)
 - ✅ MomentumDCAStrategy corrected to use full cash recycling (was underperforming at -97%)
+- ✅ **Parameter optimization completed** (50 combinations tested)
+  - Optimal configuration: `top_n=3`, `momentum_period_months=3`, `sell_when_out=True`
+  - Performance: **5,390x** (538,879%) over 2000-2026
+  - Default parameters updated in `run_backtest.py`
+  - See `OPTIMIZATION_RESULTS.md` for full analysis
+- ✅ New optimization scripts added: `optimize_momentum_dca.py`, `generate_optimization_report.py`, `run_optimal_backtest.py`
 
 ---
 
